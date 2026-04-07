@@ -4,46 +4,50 @@ import yfinance as yf
 import os
 
 # 設定網頁標題與寬版顯示
-st.set_page_config(page_title="Sihwa 資本 - V17 尊爵視覺版", layout="wide")
+st.set_page_config(page_title="Sihwa 資本 - V18 色彩加強版", layout="wide")
 
 # ==========================================
-# ✨ 視覺美化 CSS 注入
+# ✨ 色彩加強 CSS 注入
 # ==========================================
 st.markdown("""
     <style>
-    /* 全域背景稍微調深，讓卡片更明顯 */
-    .stApp {
-        background-color: #f8f9fa;
-    }
-    /* 區塊卡片效果 */
+    /* 全域背景 */
+    .stApp { background-color: #f0f2f6; }
+    
+    /* 區塊卡片美化 */
     div.stColumn > div {
         background-color: #ffffff;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        margin-bottom: 20px;
+        padding: 25px;
+        border-radius: 18px;
+        box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+        margin-bottom: 25px;
+        border: 1px solid #e1e8ed;
     }
+    
     /* 標題樣式 */
-    h1, h2, h3 {
-        color: #1e3a8a;
-        font-weight: 700;
-    }
-    /* 頂部數據看板美化 */
-    [data-testid="stMetricValue"] {
-        font-size: 1.8rem !important;
-        font-weight: 800;
-    }
-    /* 微笑曲線區塊底色 */
-    .smile-box {
-        background-color: #eef2ff;
-        padding: 15px;
-        border-radius: 10px;
-        border-left: 5px solid #6366f1;
-    }
+    h1 { color: #1e3a8a; font-weight: 800; text-align: center; margin-bottom: 20px;}
+    h2, h3 { color: #1e3a8a; font-weight: 700; margin-top: 10px; }
+    
+    /* 頂部數據 */
+    [data-testid="stMetricValue"] { font-size: 2rem !important; font-weight: 800; color: #1f2937;}
+    
+    /* 微笑曲線色彩分段 */
+    .smile-container { padding: 20px; border-radius: 15px; background-color: #ffffff;}
+    
+    /* 色彩編碼樣式 */
+    .color-box { padding: 5px 10px; border-radius: 8px; color: white; font-weight: 600; font-size: 0.9rem;}
+    .bg-blue { background-color: #3b82f6; } /* 原型 */
+    .bg-green { background-color: #10b981; } /* 保命/現金 */
+    .bg-purple { background-color: #8b5cf6; } /* 加碼 */
+    .bg-red { background-color: #ef4444; } /* 正2 */
+    
+    /* 雷達色彩卡片 */
+    .twd-radar { background-color: #eff6ff; border-left: 8px solid #2563eb; }
+    .usd-radar { background-color: #ecfdf5; border-left: 8px solid #059669; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("Sihwa 資本 | 雷恩 40-40-20 尊爵操盤面板 🚀")
+st.title("Sihwa 資本 | 雷恩 40-40-20 色彩操盤面板 🚀")
 st.markdown("---")
 
 # 1. 數據抓取工具
@@ -77,13 +81,13 @@ with st.spinner('市場數據同步中...'):
     p_qqq, c_qqq, cp_qqq = get_stock_data("QQQ")
     usd_twd = get_exchange_rate()
 
-# 🌐 頂部即時看板 (加上卡片底色效果)
+# 🌐 即時市場看板 (色彩對比)
 st.header("🌐 即時市場脈動")
 col_p1, col_p2, col_p3, col_p4 = st.columns(4)
-col_p1.metric("00662 (原型)", f"${p_662:.2f}", f"{cp_662:+.2f}%")
-col_p2.metric("00670L (正2)", f"${p_670L:.2f}", f"{cp_670L:+.2f}%")
-col_p3.metric("00865B (保命)", f"${p_865B:.2f}", f"{cp_865B:+.2f}%")
-col_p4.metric("USD/TWD 匯率", f"${usd_twd:.2f}")
+col_p1.metric("🔵 00662 (原型)", f"${p_662:.2f}", f"{cp_662:+.2f}%")
+col_p2.metric("🔴 00670L (正2)", f"${p_670L:.2f}", f"{cp_670L:+.2f}%")
+col_p3.metric("🟩 00865B (保命)", f"${p_865B:.2f}", f"{cp_865B:+.2f}%")
+col_p4.metric("💵 USD/TWD", f"${usd_twd:.2f}")
 
 st.markdown("---")
 
@@ -130,54 +134,71 @@ m2.metric("📊 今日損益", f"NT$ {today_pnl:,.0f}", f"{(today_pnl/total_val)
 m3.metric("🎯 目標 Beta", "1.20")
 m4.metric("📈 實質 Beta", f"{current_beta:.2f}", f"{current_beta-1.2:.2f}", delta_color="inverse")
 
-# 表格美化
+# [色彩加強版表格] 加上圖示引導
 edited_df = st.data_editor(
     df[["資產類別", "持有股數或金額", "今日報價", "市值", "目標佔比", "目前佔比(%)"]],
     column_config={
-        "持有股數或金額": st.column_config.NumberColumn("✏️ 修改股數/現金", format="%d"),
-        "市值": st.column_config.NumberColumn("市值", format="$%d"),
-        "目前佔比(%)": st.column_config.NumberColumn("目前 %", format="%.2f %%"),
+        "資產類別": st.column_config.Column("🛡️ 資產類別"),
+        "持有股數或金額": st.column_config.NumberColumn("✏️ 修改股數/現金", format="%d", help="直接在此修改您的真實持倉"),
+        "市值": st.column_config.NumberColumn("總市值", format="$%d"),
+        "目前佔比(%)": st.column_config.NumberColumn("目前佔比", format="%.2f %%"),
     },
     disabled=["資產類別", "今日報價", "市值", "目標佔比", "目前佔比(%)"],
     hide_index=True, use_container_width=True
 )
 
-if st.button("💾 儲存最新數據"):
+if st.button("💾 儲存最新數據 (請在修改完股數後點擊此處存檔)"):
     st.session_state.shares_data['持有股數或金額'] = edited_df['持有股數或金額']
     st.session_state.shares_data.to_csv(DATA_FILE, index=False)
-    st.success("✅ 存檔成功！")
+    st.success("✅ 存檔成功！畫面將重整更新。")
     st.rerun()
 
 st.markdown("---")
 
 # ==========================================
-# 🔴 區塊二：雙核雷達
+# 🔴 區塊二：雙核雷達 (色彩對比加強)
 # ==========================================
 st.header("🔴 雙核雷達警報系統")
 c_r1, c_r2 = st.columns(2)
 
+# 台股雷達 (深藍色卡片)
 with c_r1:
-    st.subheader("🇹🇼 00662 監控")
-    sma_662 = st.number_input("設定年線基準：", value=93.49)
+    st.markdown('<div class="twd-radar">', unsafe_allow_html=True)
+    st.subheader("🇹🇼 00662 監控 (原型底倉)")
+    sma_662 = st.number_input("設定 240日年線基準：", value=93.49, key="sma662")
     bias_662 = ((p_662 - sma_662) / sma_662) * 100
+    
     sub1, sub2 = st.columns(2)
     sub1.metric("現在股價", f"${p_662:.2f}")
-    sub2.metric("偏離率", f"{bias_662:.2f}%", "安全" if bias_662>0 else "跌破")
+    # 安全綠，跌破紅
+    sub2.metric("偏離率", f"{bias_662:.2f}%", "安全" if bias_662>0 else "跌破", delta_color="normal" if bias_662>0 else "inverse")
+    
+    if bias_662 >= 0: st.success("🟢 狀態：安全續抱，維持 40-40-20")
+    elif bias_662 >= -3: st.warning("🟡 狀態：警戒防守，觀察三日")
+    else: st.error("🔴 狀態：危險撤退，清空正2！")
+    st.markdown('</div>', unsafe_allow_html=True)
 
+# 美股雷達 (深綠色卡片)
 with c_r2:
-    st.subheader("🇺🇸 QQQ 監控")
-    sma_qqq = st.number_input("設定 QQQ 年線基準：", value=430.0)
+    st.markdown('<div class="usd-radar">', unsafe_allow_html=True)
+    st.subheader("🇺🇸 QQQ 監控 (美股大盤確認)")
+    sma_qqq = st.number_input("設定 QQQ 年線基準 (USD)：", value=430.0, key="smaqqq")
     bias_qqq = ((p_qqq - sma_qqq) / sma_qqq) * 100
+    
     sub3, sub4 = st.columns(2)
     sub3.metric("現在股價", f"${p_qqq:.2f}")
-    sub4.metric("偏離率", f"{bias_qqq:.2f}%", "安全" if bias_qqq>0 else "跌破")
+    sub4.metric("偏離率", f"{bias_qqq:.2f}%", "安全" if bias_qqq>0 else "跌破", delta_color="normal" if bias_qqq>0 else "inverse")
+    
+    if bias_qqq >= 0: st.success("🟢 狀態：美股健康")
+    else: st.error("🔴 狀態：美股轉弱，防禦準備！")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
 # ==========================================
-# 🔵 區塊三：微笑曲線 (加入區塊底色)
+# 🔵 區塊三：微笑曲線 (漸層色彩打點)
 # ==========================================
-st.header("🔵 微笑曲線打點計畫")
+st.header("🔵 微笑曲線打點計畫 (空頭反攻指標)")
 cash_reserve = df.loc[df['資產類別'] == '撤退備戰金 (現金)', '市值'].values[0]
 st.info(f"💡 目前可用備戰金： **NT$ {cash_reserve:,.0f}**")
 
@@ -185,19 +206,31 @@ def get_smile_text(label, drop, inv):
     tp = sma_662 * (1 - drop)
     budget = total_val * inv
     shares = int(budget / tp) if tp > 0 else 0
-    return f"{label} ➔ 觸發價 **${tp:.2f}** | 買 **{shares:,}** 股 (約 ${budget/10000:.0f}萬)"
+    return f"{label} ➔ 觸發價 **${ tp:.2f}** | 買 **{shares:,}** 股 (約 ${budget/10000:.0f}萬)"
 
-# 使用 HTML div 加上自定義 class 讓區塊變好看
-st.markdown('<div class="smile-box">', unsafe_allow_html=True)
+st.markdown('<div class="smile-container">', unsafe_allow_html=True)
 cc1, cc2 = st.columns(2)
+
 with cc1:
-    st.subheader("📉 下跌分批投 (5%)")
-    for d in [0.08, 0.1, 0.15, 0.2, 0.25, 0.3]:
-        st.checkbox(get_smile_text(f"-{d*100:g}%", d, 0.05))
+    st.subheader("📉 下跌分批投 (5% / 階梯)")
+    # 紅色漸層 (跌越深紅色越濃)
+    drops = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3]
+    colors = ["#fee2e2", "#fecaca", "#fca5a5", "#f87171", "#ef4444", "#dc2626"] # 由淺紅到深紅
+    for i, d in enumerate(drops):
+        st.markdown(f'<div style="background-color:{colors[i]}; padding:5px 10px; border-radius:8px; margin-bottom:5px;">', unsafe_allow_html=True)
+        st.checkbox(get_smile_text(f"-{d*100:g}%", d, 0.05), key=f"drop_{d}")
+        st.markdown('</div>', unsafe_allow_html=True)
+
 with cc2:
-    st.subheader("📈 反彈分批投 (2%)")
-    for d in [0.08, 0.1, 0.15, 0.2, 0.25, 0.3]:
-        st.checkbox(get_smile_text(f"反彈 {d*100:g}%", d, 0.02))
+    st.subheader("📈 反彈分批投 (2% / 階梯)")
+    # 藍色漸層 (反彈越高藍色越濃)
+    drops = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3]
+    colors = ["#e0f2fe", "#bae6fd", "#7dd3fc", "#38bdf8", "#0ea5e9", "#0284c7"] # 由淺藍到深藍
+    for i, d in enumerate(drops):
+        st.markdown(f'<div style="background-color:{colors[i]}; padding:5px 10px; border-radius:8px; margin-bottom:5px;">', unsafe_allow_html=True)
+        st.checkbox(get_smile_text(f"反彈 {d*100:g}%", d, 0.02), key=f"rise_{d}")
+        st.markdown('</div>', unsafe_allow_html=True)
+
 st.markdown('</div>', unsafe_allow_html=True)
 
-st.error("🛑 警語：若跌破 -30%，請停止任何加碼，進入冬眠保護現金！")
+st.error("🛑 警語：若跌破 -30% 深淵，請停止任何加碼，進入冬眠保護現金！")
