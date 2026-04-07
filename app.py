@@ -4,7 +4,7 @@ import plotly.express as px
 import yfinance as yf
 
 # 設定網頁標題與寬版顯示
-st.set_page_config(page_title="Sihwa 資本 - V3 終極全自動投資儀表板", layout="wide")
+st.set_page_config(page_title="Sihwa 資本 - V4 頂配全自動投資儀表板", layout="wide")
 st.title("Sihwa 資本 | 雷恩 40-40-20 全自動儀表板 🚀")
 st.markdown("---")
 
@@ -36,7 +36,6 @@ st.markdown("---")
 # ==========================================
 st.header("🟡 區塊一：資產配置與自動化圓餅圖")
 
-# 1. 建立 Session State 來儲存並連動計算結果
 if 'shares_data' not in st.session_state:
     st.session_state.shares_data = pd.DataFrame({
         "資產類別": ["原型底倉 (00662A)", "原型加碼倉", "正2攻擊 (00670L)", "絕對保命金 (00865B)", "撤退備戰金 (現金)"],
@@ -45,19 +44,18 @@ if 'shares_data' not in st.session_state:
         "目標佔比": ["40%", "0%", "40%", "20%", "0%"]
     })
 
-# 2. 寫入最新單價
+# 寫入最新單價並計算
 st.session_state.shares_data['今日單價'] = [price_00662, price_00662, price_00670L, price_00865B, 1.0]
-
-# 3. 計算市值與佔比
 st.session_state.shares_data['市值'] = st.session_state.shares_data['持有股數或金額'] * st.session_state.shares_data['今日單價']
 total_value = st.session_state.shares_data['市值'].sum()
 st.session_state.shares_data['佔比(自動)'] = (st.session_state.shares_data['市值'] / total_value).apply(lambda x: f"{x*100:.2f}%")
 
-# [新增] 總市值放置於開頭
+# 提取備戰金金額供區塊三使用
+cash_available = st.session_state.shares_data.loc[st.session_state.shares_data['資產類別'] == '撤退備戰金 (現金)', '市值'].values[0]
+
 st.markdown(f"### 💰 目前總資產市值： **NT$ {total_value:,.0f}**")
 st.write("您只需修改『持有股數或金額』，按下 Enter 後系統會自動更新所有佔比與下方圖表！")
 
-# 4. 顯示互動表格 (支援金錢格式顯示)
 edited_df = st.data_editor(
     st.session_state.shares_data,
     column_config={
@@ -69,12 +67,10 @@ edited_df = st.data_editor(
     use_container_width=True
 )
 
-# 5. 偵測股數變動並重新計算整個網頁
 if not edited_df['持有股數或金額'].equals(st.session_state.shares_data['持有股數或金額']):
     st.session_state.shares_data['持有股數或金額'] = edited_df['持有股數或金額']
     st.rerun()
 
-# 繪製會自動變形的圓餅圖
 fig = px.pie(st.session_state.shares_data, values='市值', names='資產類別', 
              color_discrete_sequence=px.colors.sequential.Teal)
 st.plotly_chart(fig, use_container_width=True)
@@ -84,7 +80,7 @@ st.markdown("---")
 # 區塊二：雙核雷達 
 # ==========================================
 st.header("🔴 區塊二：雙核雷達警報器 (多空防禦指標)")
-st.write("系統會根據您輸入的年線，自動計算 00662A 偏離率並亮起對應燈號。")
+st.write("系統會根據您輸入的年線，自動計算 00662A 偏離率並連動區塊三的觸發價。")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -103,34 +99,36 @@ with col2:
 
 st.markdown("---")
 # ==========================================
-# 區塊三：微笑曲線 (加入自動精算股數)
+# 區塊三：微笑曲線 (年線連動精算版)
 # ==========================================
 st.header("🔵 區塊三：熊市微笑曲線打點表 (空頭反攻指標)")
-st.write("跌破年線後分批買入原型底倉。系統已根據 **即時總市值** 與 **即時股價** 幫您算好確切的購買數量：")
+st.markdown(f"💡 **目前可動用之【撤退備戰金 (現金)】餘額： NT$ {cash_available:,.0f}**")
+st.write("系統已根據上方設定的 **年線價格** 自動算出精確的觸發點，並分配備戰金：")
 
-# 建立動態計算函數，直接將金額與股數秀出來
-def get_smile_text(label, invest_ratio):
+# 建立動態計算函數 (觸發價 = 年線 * (1 - 跌幅))
+def get_smile_text(label, drop_rate, invest_ratio):
+    target_price = sma_240 * (1 - drop_rate)
     amount = total_value * invest_ratio
-    shares = int(amount / price_00662) if price_00662 > 0 else 0
-    return f"{label} ➔ 金額: ${amount:,.0f} | 約買 {shares:,} 股 (股價 ${price_00662:.2f})"
+    shares = int(amount / target_price) if target_price > 0 else 0
+    return f"{label} ➔ 觸發價: **${target_price:.2f}** | 動用現金: ${amount:,.0f} | 預計買入: **{shares:,}** 股"
 
 col_a, col_b = st.columns(2)
 with col_a:
     st.subheader("📉 左側下跌段")
-    st.checkbox(get_smile_text("-8% (投入 5%)", 0.05))
-    st.checkbox(get_smile_text("-10% (投入 5%)", 0.05))
-    st.checkbox(get_smile_text("-15% (投入 5%)", 0.05))
-    st.checkbox(get_smile_text("-20% (投入 5%)", 0.05))
-    st.checkbox(get_smile_text("-25% (投入 5%)", 0.05))
-    st.checkbox(get_smile_text("-30% (投入 5%)", 0.05))
+    st.checkbox(get_smile_text("-8% (投入 5%)", 0.08, 0.05))
+    st.checkbox(get_smile_text("-10% (投入 5%)", 0.10, 0.05))
+    st.checkbox(get_smile_text("-15% (投入 5%)", 0.15, 0.05))
+    st.checkbox(get_smile_text("-20% (投入 5%)", 0.20, 0.05))
+    st.checkbox(get_smile_text("-25% (投入 5%)", 0.25, 0.05))
+    st.checkbox(get_smile_text("-30% (投入 5%)", 0.30, 0.05))
 
 with col_b:
     st.subheader("📈 右側上漲段")
-    st.checkbox(get_smile_text("從 -8% 反彈 (投入 2%)", 0.02))
-    st.checkbox(get_smile_text("從 -10% 反彈 (投入 2%)", 0.02))
-    st.checkbox(get_smile_text("從 -15% 反彈 (投入 2%)", 0.02))
-    st.checkbox(get_smile_text("從 -20% 反彈 (投入 2%)", 0.02))
-    st.checkbox(get_smile_text("從 -25% 反彈 (投入 2%)", 0.02))
-    st.checkbox(get_smile_text("從 -30% 反彈 (投入 2%)", 0.02))
+    st.checkbox(get_smile_text("從 -8% 反彈 (投入 2%)", 0.08, 0.02))
+    st.checkbox(get_smile_text("從 -10% 反彈 (投入 2%)", 0.10, 0.02))
+    st.checkbox(get_smile_text("從 -15% 反彈 (投入 2%)", 0.15, 0.02))
+    st.checkbox(get_smile_text("從 -20% 反彈 (投入 2%)", 0.20, 0.02))
+    st.checkbox(get_smile_text("從 -25% 反彈 (投入 2%)", 0.25, 0.02))
+    st.checkbox(get_smile_text("從 -30% 反彈 (投入 2%)", 0.30, 0.02))
 
 st.error("🛑 跌破 -30% 深淵：停止加碼，進入冬眠模式保護現金！")
