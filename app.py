@@ -157,4 +157,46 @@ with col_r1:
         st.error("🔴 狀態：危險撤退，無情清空正2！")
 
 with col_r2:
-    st.info("🇺🇸
+    st.info("🇺🇸 **美股指標：QQQ 監控**")
+    qqq_sma_240 = st.number_input("設定 240日年線 (USD)：", value=430.0, step=0.5)
+    bias_qqq = ((p_qqq - qqq_sma_240) / qqq_sma_240) * 100
+    st.metric(label=f"目前偏離率 (現價 ${p_qqq:.2f})", value=f"{bias_qqq:.2f}%", delta="站穩年線" if bias_qqq > 0 else "跌破年線", delta_color="normal" if bias_qqq > 0 else "inverse")
+    if bias_qqq >= 0:
+        st.success("🟢 狀態：美股大盤健康")
+    else:
+        st.error("🔴 狀態：美股大盤轉弱，防禦準備！")
+
+st.markdown("---")
+# ==========================================
+# 區塊三：微笑曲線 (打勾清單)
+# ==========================================
+st.header("🔵 區塊三：微笑曲線打點表")
+cash_reserve = df.loc[df['資產類別'] == '撤退備戰金 (現金)', '市值'].values[0]
+st.write(f"💡 目前可動用之【撤退備戰金】： **NT$ {cash_reserve:,.0f}**")
+
+def get_smile_text(label, drop_rate, invest_ratio):
+    target_price = sma_240 * (1 - drop_rate)
+    budget = total_val * invest_ratio
+    shares = int(budget / target_price) if target_price > 0 else 0
+    return f"{label} ➔ 觸發價 **${target_price:.2f}** | 買 **{shares:,}** 股 (約 ${budget/10000:.0f}萬)"
+
+col_a, col_b = st.columns(2)
+with col_a:
+    st.subheader("📉 左側下跌段")
+    st.checkbox(get_smile_text("-8% (投5%)", 0.08, 0.05))
+    st.checkbox(get_smile_text("-10% (投5%)", 0.10, 0.05))
+    st.checkbox(get_smile_text("-15% (投5%)", 0.15, 0.05))
+    st.checkbox(get_smile_text("-20% (投5%)", 0.20, 0.05))
+    st.checkbox(get_smile_text("-25% (投5%)", 0.25, 0.05))
+    st.checkbox(get_smile_text("-30% (投5%)", 0.30, 0.05))
+
+with col_b:
+    st.subheader("📈 右側上漲段")
+    st.checkbox(get_smile_text("從 -8% 反彈 (投2%)", 0.08, 0.02))
+    st.checkbox(get_smile_text("從 -10% 反彈 (投2%)", 0.10, 0.02))
+    st.checkbox(get_smile_text("從 -15% 反彈 (投2%)", 0.15, 0.02))
+    st.checkbox(get_smile_text("從 -20% 反彈 (投2%)", 0.20, 0.02))
+    st.checkbox(get_smile_text("從 -25% 反彈 (投2%)", 0.25, 0.02))
+    st.checkbox(get_smile_text("從 -30% 反彈 (投2%)", 0.30, 0.02))
+
+st.error("🛑 提示：若跌破 -30% 深淵，請停止加碼，進入冬眠模式保護現金！")
