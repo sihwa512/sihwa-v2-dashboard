@@ -4,7 +4,7 @@ import yfinance as yf
 import os
 
 # 設定網頁標題與寬版顯示
-st.set_page_config(page_title="Sihwa 資本 - V14 精準對標版", layout="wide")
+st.set_page_config(page_title="Sihwa 資本 - V15 數據強化版", layout="wide")
 st.title("Sihwa 資本 | 雷恩 40-40-20 旗艦儀表板 🚀")
 st.markdown("---")
 
@@ -64,7 +64,6 @@ if 'shares_data' not in st.session_state:
             "資產類別": CAT_ORDER,
             "持有股數或金額": [113000, 150000, 4309152, 0, 0]
         })
-    # 確保名稱一致 (處理從 A 改為無 A 的名稱過渡)
     _df['資產類別'] = _df['資產類別'].replace("原型底倉 (00662A)", "原型底倉 (00662)")
     _df['資產類別'] = pd.Categorical(_df['資產類別'], categories=CAT_ORDER, ordered=True)
     st.session_state.shares_data = _df.sort_values('資產類別').reset_index(drop=True)
@@ -93,12 +92,13 @@ m2.metric("📊 今日總損益", f"NT$ {today_pnl:,.0f}", f"{(today_pnl/total_v
 m3.metric("🎯 目標 Beta", "1.20")
 m4.metric("📈 實質 Beta", f"{current_beta:.2f}", f"{current_beta-1.2:.2f}", delta_color="inverse")
 
+# 美化版表格
 edited_df = st.data_editor(
     df[["資產類別", "持有股數或金額", "今日報價", "市值", "目標佔比", "目前佔比"]],
     column_config={
         "持有股數或金額": st.column_config.NumberColumn("✏️ 持有股數或現金", format="%d", step=1),
         "市值": st.column_config.NumberColumn("總市值", format="$%d"),
-        "目前佔比": st.column_config.ProgressColumn("📊 目前佔比", min_value=0, max_value=1, format="%.2f"),
+        "目前佔比": st.column_config.ProgressColumn("📊 目前佔比進度", min_value=0, max_value=1, format="%.2f"),
     },
     disabled=["資產類別", "今日報價", "市值", "目標佔比", "目前佔比"],
     hide_index=True, use_container_width=True
@@ -112,22 +112,35 @@ if st.button("💾 儲存最新數據"):
 
 st.markdown("---")
 # ==========================================
-# 區塊二 & 三：雷達 (更新標題現價)
+# 區塊二：雙核雷達 (加強股價顯示)
 # ==========================================
 st.header("🔴 區塊二：雙核雷達警報器")
+
 c_r1, c_r2 = st.columns(2)
 with c_r1:
-    # [更新] 標題顯示現價
-    sma_662 = st.number_input(f"00662 240日年線設定 (現價 ${p_662:.2f})：", value=93.49)
+    st.subheader("🇹🇼 00662 監控")
+    sma_662 = st.number_input("輸入 00662 年線設定：", value=93.49)
     bias_662 = ((p_662 - sma_662) / sma_662) * 100
-    st.metric("00662 偏離率", f"{bias_662:.2f}%", "安全" if bias_662>0 else "跌破")
+    
+    # [強化] 現價與偏離率並列
+    col_v1, col_v2 = st.columns(2)
+    col_v1.metric("00662 現在股價", f"${p_662:.2f}")
+    col_v2.metric("00662 偏離率", f"{bias_662:.2f}%", "安全" if bias_662>0 else "跌破")
+
 with c_r2:
-    # [更新] 標題顯示現價
-    sma_qqq = st.number_input(f"QQQ 240日年線設定 (現價 ${p_qqq:.2f})：", value=430.0)
+    st.subheader("🇺🇸 QQQ 監控")
+    sma_qqq = st.number_input("輸入 QQQ 年線設定 (USD)：", value=430.0)
     bias_qqq = ((p_qqq - sma_qqq) / sma_qqq) * 100
-    st.metric("QQQ 偏離率", f"{bias_qqq:.2f}%", "安全" if bias_qqq>0 else "跌破")
+    
+    # [強化] 現價與偏離率並列
+    col_v3, col_v4 = st.columns(2)
+    col_v3.metric("QQQ 現在股價", f"${p_qqq:.2f}")
+    col_v4.metric("QQQ 偏離率", f"{bias_qqq:.2f}%", "安全" if bias_qqq>0 else "跌破")
 
 st.markdown("---")
+# ==========================================
+# 區塊三：微笑曲線
+# ==========================================
 st.header("🔵 區塊三：微笑曲線打點計畫")
 cash_reserve = df.loc[df['資產類別'] == '撤退備戰金 (現金)', '市值'].values[0]
 st.write(f"💡 目前備戰金： **NT$ {cash_reserve:,.0f}**")
