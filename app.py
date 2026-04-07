@@ -4,7 +4,7 @@ import yfinance as yf
 import os
 
 # 設定網頁標題與寬版顯示
-st.set_page_config(page_title="Sihwa 資本 - V11 黃金比例版", layout="wide")
+st.set_page_config(page_title="Sihwa 資本 - V12 修復穩定版", layout="wide")
 st.title("Sihwa 資本 | 雷恩 40-40-20 旗艦儀表板 🚀")
 st.markdown("---")
 
@@ -60,25 +60,25 @@ st.markdown("---")
 st.header("🟡 區塊一：部位管理與 Beta 風險控管")
 
 DATA_FILE = "portfolio_data.csv"
+CAT_ORDER = ["原型底倉 (00662A)", "絕對保命金 (00865B)", "撤退備戰金 (現金)", "原型加碼倉", "正2攻擊 (00670L)"]
 
+# 穩定的載入與對齊邏輯
 def load_data():
     if os.path.exists(DATA_FILE):
-        return pd.read_csv(DATA_FILE)
+        _df = pd.read_csv(DATA_FILE)
     else:
-        return pd.DataFrame({
+        _df = pd.DataFrame({
             "資產類別": ["原型底倉 (00662A)", "絕對保命金 (00865B)", "撤退備戰金 (現金)", "原型加碼倉", "正2攻擊 (00670L)"],
             "持有股數或金額": [113000, 150000, 4309152, 0, 0]
         })
+    # 確保讀取後強制對齊排序，避免當機
+    _df['資產類別'] = pd.Categorical(_df['資產類別'], categories=CAT_ORDER, ordered=True)
+    return _df.sort_values('資產類別').reset_index(drop=True)
 
 if 'shares_data' not in st.session_state:
     st.session_state.shares_data = load_data()
 
 df = st.session_state.shares_data.copy()
-
-# 強制排序與屬性映射
-cat_order = ["原型底倉 (00662A)", "絕對保命金 (00865B)", "撤退備戰金 (現金)", "原型加碼倉", "正2攻擊 (00670L)"]
-df['資產類別'] = pd.Categorical(df['資產類別'], categories=cat_order, ordered=True)
-df = df.sort_values('資產類別').reset_index(drop=True)
 
 price_map = {"原型底倉 (00662A)": p_662, "絕對保命金 (00865B)": p_865B, "撤退備戰金 (現金)": 1.0, "原型加碼倉": p_662, "正2攻擊 (00670L)": p_670L}
 beta_map = {"原型底倉 (00662A)": 1.0, "絕對保命金 (00865B)": 0.0, "撤退備戰金 (現金)": 0.0, "原型加碼倉": 1.0, "正2攻擊 (00670L)": 2.0}
@@ -91,17 +91,16 @@ df['目標佔比'] = df['資產類別'].map(target_map)
 # 計算市值與佔比
 df['市值'] = df['持有股數或金額'] * df['今日單價']
 total_val = df['市值'].sum()
-df['佔比'] = (df['市值'] / total_val) if total_val > 0 else 0
-df['佔比數值'] = df['佔比'] * 100  # 用於進度條顯示
+df['佔比數值'] = (df['市值'] / total_val) * 100 if total_val > 0 else 0
 
 # 安全計算今日損益
-q_662_b = df.loc[df['資產類別'] == '原型底倉 (00662A)', '持有股數或金額'].values[0]
-q_662_a = df.loc[df['資產類別'] == '原型加碼倉', '持有股數或金額'].values[0]
-q_670L = df.loc[df['資產類別'] == '正2攻擊 (00670L)', '持有股數或金額'].values[0]
-q_865B = df.loc[df['資產類別'] == '絕對保命金 (00865B)', '持有股數或金額'].values[0]
-today_pnl = (q_662_b * c_662) + (q_662_a * c_662) + (q_670L * c_670L) + (q_865B * c_865B)
+def get_qty(asset_name):
+    return df.loc[df['資產類別'] == asset_name, '持有股數或金額'].values[0]
 
-current_beta = (df['佔比'] * df['個股Beta']).sum()
+today_pnl = (get_qty('原型底倉 (00662A)') * c_662) + (get_qty('原型加碼倉') * c_662) + \
+            (get_qty('正2攻擊 (00670L)') * c_670L) + (get_qty('絕對保命金 (00865B)') * c_865B)
+
+current_beta = ((df['市值'] / total_val) * df['個股Beta']).sum() if total_val > 0 else 0
 target_beta = 1.20
 
 # 顯示數據牆
@@ -123,9 +122,9 @@ edited_df = st.data_editor(
         "市值": st.column_config.NumberColumn("💰 總市值", format="$%d", disabled=True),
         "目標佔比": st.column_config.Column("🎯 目標", disabled=True),
         "佔比數值": st.column_config.ProgressColumn(
-            "📊 實際佔比進度",
+            "📊 實際佔比進度 (%)",
             help="藍色進度條顯示目前資金比重",
-            format="%.2f%%",
+            format="%.2f",
             min_value=0,
             max_value=100,
             disabled=True
@@ -146,7 +145,8 @@ with col_btn1:
         st.success("✅ 儲存成功！")
         st.rerun()
 
-if not edited_df['持有股數或金額'].equals(st.session_state.shares_data['持有股數或金額']):
+# [修復防呆邏輯] 使用列表比對，避免 pandas 索引錯亂導致的當機
+if list(edited_df['持有股數或金額']) != list(st.session_state.shares_data['持有股數或金額']):
     st.session_state.shares_data['持有股數或金額'] = edited_df['持有股數或金額']
     st.rerun()
 
@@ -185,7 +185,7 @@ st.markdown("---")
 # 區塊三：微笑曲線 (打勾清單)
 # ==========================================
 st.header("🔵 區塊三：微笑曲線打點表")
-cash_reserve = df.loc[df['資產類別'] == '撤退備戰金 (現金)', '市值'].values[0]
+cash_reserve = get_qty('撤退備戰金 (現金)')
 st.write(f"💡 目前可動用之【撤退備戰金】： **NT$ {cash_reserve:,.0f}**")
 
 def get_smile_text(label, drop_rate, invest_ratio):
