@@ -4,7 +4,7 @@ import yfinance as yf
 import os
 
 # 設定網頁標題與寬版顯示
-st.set_page_config(page_title="Sihwa 資本 - V15 數據強化版", layout="wide")
+st.set_page_config(page_title="Sihwa 資本 - V16 數據精簡版", layout="wide")
 st.title("Sihwa 資本 | 雷恩 40-40-20 旗艦儀表板 🚀")
 st.markdown("---")
 
@@ -72,19 +72,20 @@ df = st.session_state.shares_data.copy()
 
 p_map = {"原型底倉 (00662)": p_662, "絕對保命金 (00865B)": p_865B, "撤退備戰金 (現金)": 1.0, "原型加碼倉": p_662, "正2攻擊 (00670L)": p_670L}
 b_map = {"原型底倉 (00662)": 1.0, "絕對保命金 (00865B)": 0.0, "撤退備戰金 (現金)": 0.0, "原型加碼倉": 1.0, "正2攻擊 (00670L)": 2.0}
-t_map = {"原型底倉 (00662)": "40%", "絕對保命金 (00865B)": "20%", "撤退備戰金 (現金)": "0%", "原型加碼倉": "0%", "正2攻擊 (00670L)": "40%"}
+t_map = {"原型底倉 (00662)": "40%", "絕對保命金 (00865B)": "20%", "撤打退戰金 (現金)": "0%", "原型加碼倉": "0%", "正2攻擊 (00670L)": "40%"}
 
 df['今日報價'] = df['資產類別'].map(p_map)
 df['市值'] = df['持有股數或金額'] * df['今日報價']
 total_val = df['市值'].sum()
-df['目前佔比'] = (df['市值'] / total_val) if total_val > 0 else 0
+# 將目前佔比轉為 0-100 的百分比數值
+df['目前佔比(%)'] = (df['市值'] / total_val * 100) if total_val > 0 else 0
 df['目標佔比'] = df['資產類別'].map(t_map)
 df['個股Beta'] = df['資產類別'].map(b_map)
 
 today_pnl = (df.loc[df['資產類別'].isin(['原型底倉 (00662)', '原型加碼倉']), '持有股數或金額'].sum() * c_662) + \
             (df.loc[df['資產類別'] == '正2攻擊 (00670L)', '持有股數或金額'].sum() * c_670L) + \
             (df.loc[df['資產類別'] == '絕對保命金 (00865B)', '持有股數或金額'].sum() * c_865B)
-current_beta = (df['目前佔比'] * df['個股Beta']).sum()
+current_beta = ((df['目前佔比(%)'] / 100) * df['個股Beta']).sum()
 
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("💰 總資產淨值", f"NT$ {total_val:,.0f}")
@@ -92,15 +93,15 @@ m2.metric("📊 今日總損益", f"NT$ {today_pnl:,.0f}", f"{(today_pnl/total_v
 m3.metric("🎯 目標 Beta", "1.20")
 m4.metric("📈 實質 Beta", f"{current_beta:.2f}", f"{current_beta-1.2:.2f}", delta_color="inverse")
 
-# 美化版表格
+# 調整表格設定，改為百分比格式
 edited_df = st.data_editor(
-    df[["資產類別", "持有股數或金額", "今日報價", "市值", "目標佔比", "目前佔比"]],
+    df[["資產類別", "持有股數或金額", "今日報價", "市值", "目標佔比", "目前佔比(%)"]],
     column_config={
         "持有股數或金額": st.column_config.NumberColumn("✏️ 持有股數或現金", format="%d", step=1),
         "市值": st.column_config.NumberColumn("總市值", format="$%d"),
-        "目前佔比": st.column_config.ProgressColumn("📊 目前佔比進度", min_value=0, max_value=1, format="%.2f"),
+        "目前佔比(%)": st.column_config.NumberColumn("📊 目前佔比", format="%.2f %%"),
     },
-    disabled=["資產類別", "今日報價", "市值", "目標佔比", "目前佔比"],
+    disabled=["資產類別", "今日報價", "市值", "目標佔比", "目前佔比(%)"],
     hide_index=True, use_container_width=True
 )
 
@@ -112,7 +113,7 @@ if st.button("💾 儲存最新數據"):
 
 st.markdown("---")
 # ==========================================
-# 區塊二：雙核雷達 (加強股價顯示)
+# 區塊二：雙核雷達
 # ==========================================
 st.header("🔴 區塊二：雙核雷達警報器")
 
@@ -122,7 +123,6 @@ with c_r1:
     sma_662 = st.number_input("輸入 00662 年線設定：", value=93.49)
     bias_662 = ((p_662 - sma_662) / sma_662) * 100
     
-    # [強化] 現價與偏離率並列
     col_v1, col_v2 = st.columns(2)
     col_v1.metric("00662 現在股價", f"${p_662:.2f}")
     col_v2.metric("00662 偏離率", f"{bias_662:.2f}%", "安全" if bias_662>0 else "跌破")
@@ -132,7 +132,6 @@ with c_r2:
     sma_qqq = st.number_input("輸入 QQQ 年線設定 (USD)：", value=430.0)
     bias_qqq = ((p_qqq - sma_qqq) / sma_qqq) * 100
     
-    # [強化] 現價與偏離率並列
     col_v3, col_v4 = st.columns(2)
     col_v3.metric("QQQ 現在股價", f"${p_qqq:.2f}")
     col_v4.metric("QQQ 偏離率", f"{bias_qqq:.2f}%", "安全" if bias_qqq>0 else "跌破")
