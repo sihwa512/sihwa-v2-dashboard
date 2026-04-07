@@ -4,7 +4,7 @@ import yfinance as yf
 import os
 
 # 設定網頁標題與寬版顯示
-st.set_page_config(page_title="Sihwa 資本 - V13 穩定美化版", layout="wide")
+st.set_page_config(page_title="Sihwa 資本 - V14 精準對標版", layout="wide")
 st.title("Sihwa 資本 | 雷恩 40-40-20 旗艦儀表板 🚀")
 st.markdown("---")
 
@@ -41,7 +41,7 @@ with st.spinner('市場數據同步中...'):
 
 # 頂部即時看板
 col_p1, col_p2, col_p3, col_p4 = st.columns(4)
-col_p1.metric("00662A (原型)", f"${p_662:.2f}", f"{cp_662:+.2f}%")
+col_p1.metric("00662 (原型)", f"${p_662:.2f}", f"{cp_662:+.2f}%")
 col_p2.metric("00670L (正2)", f"${p_670L:.2f}", f"{cp_670L:+.2f}%")
 col_p3.metric("00865B (保命)", f"${p_865B:.2f}", f"{cp_865B:+.2f}%")
 col_p4.metric("USD/TWD 匯率", f"${usd_twd:.2f}")
@@ -49,13 +49,12 @@ col_p4.metric("USD/TWD 匯率", f"${usd_twd:.2f}")
 st.markdown("---")
 
 # ==========================================
-# 區塊一：部位管理 (排序優化與穩定版表格)
+# 區塊一：部位管理
 # ==========================================
 st.header("🟡 區塊一：部位管理與 Beta 監控")
 
 DATA_FILE = "portfolio_data.csv"
-# [老闆指定排序] 原型底倉 -> 保命金 -> 現金 -> 加碼倉 -> 正2攻擊
-CAT_ORDER = ["原型底倉 (00662A)", "絕對保命金 (00865B)", "撤退備戰金 (現金)", "原型加碼倉", "正2攻擊 (00670L)"]
+CAT_ORDER = ["原型底倉 (00662)", "絕對保命金 (00865B)", "撤退備戰金 (現金)", "原型加碼倉", "正2攻擊 (00670L)"]
 
 if 'shares_data' not in st.session_state:
     if os.path.exists(DATA_FILE):
@@ -65,15 +64,16 @@ if 'shares_data' not in st.session_state:
             "資產類別": CAT_ORDER,
             "持有股數或金額": [113000, 150000, 4309152, 0, 0]
         })
+    # 確保名稱一致 (處理從 A 改為無 A 的名稱過渡)
+    _df['資產類別'] = _df['資產類別'].replace("原型底倉 (00662A)", "原型底倉 (00662)")
     _df['資產類別'] = pd.Categorical(_df['資產類別'], categories=CAT_ORDER, ordered=True)
     st.session_state.shares_data = _df.sort_values('資產類別').reset_index(drop=True)
 
 df = st.session_state.shares_data.copy()
 
-# 靜態映射
-p_map = {"原型底倉 (00662A)": p_662, "絕對保命金 (00865B)": p_865B, "撤退備戰金 (現金)": 1.0, "原型加碼倉": p_662, "正2攻擊 (00670L)": p_670L}
-b_map = {"原型底倉 (00662A)": 1.0, "絕對保命金 (00865B)": 0.0, "撤退備戰金 (現金)": 0.0, "原型加碼倉": 1.0, "正2攻擊 (00670L)": 2.0}
-t_map = {"原型底倉 (00662A)": "40%", "絕對保命金 (00865B)": "20%", "撤退備戰金 (現金)": "0%", "原型加碼倉": "0%", "正2攻擊 (00670L)": "40%"}
+p_map = {"原型底倉 (00662)": p_662, "絕對保命金 (00865B)": p_865B, "撤退備戰金 (現金)": 1.0, "原型加碼倉": p_662, "正2攻擊 (00670L)": p_670L}
+b_map = {"原型底倉 (00662)": 1.0, "絕對保命金 (00865B)": 0.0, "撤退備戰金 (現金)": 0.0, "原型加碼倉": 1.0, "正2攻擊 (00670L)": 2.0}
+t_map = {"原型底倉 (00662)": "40%", "絕對保命金 (00865B)": "20%", "撤退備戰金 (現金)": "0%", "原型加碼倉": "0%", "正2攻擊 (00670L)": "40%"}
 
 df['今日報價'] = df['資產類別'].map(p_map)
 df['市值'] = df['持有股數或金額'] * df['今日報價']
@@ -82,21 +82,17 @@ df['目前佔比'] = (df['市值'] / total_val) if total_val > 0 else 0
 df['目標佔比'] = df['資產類別'].map(t_map)
 df['個股Beta'] = df['資產類別'].map(b_map)
 
-# 計算損益與 Beta
-today_pnl = (df.loc[df['資產類別'].isin(['原型底倉 (00662A)', '原型加碼倉']), '持有股數或金額'].sum() * c_662) + \
+today_pnl = (df.loc[df['資產類別'].isin(['原型底倉 (00662)', '原型加碼倉']), '持有股數或金額'].sum() * c_662) + \
             (df.loc[df['資產類別'] == '正2攻擊 (00670L)', '持有股數或金額'].sum() * c_670L) + \
             (df.loc[df['資產類別'] == '絕對保命金 (00865B)', '持有股數或金額'].sum() * c_865B)
 current_beta = (df['目前佔比'] * df['個股Beta']).sum()
 
-# 數據指標欄
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("💰 總資產淨值", f"NT$ {total_val:,.0f}")
 m2.metric("📊 今日總損益", f"NT$ {today_pnl:,.0f}", f"{(today_pnl/total_val)*100:+.2f}%")
 m3.metric("🎯 目標 Beta", "1.20")
 m4.metric("📈 實質 Beta", f"{current_beta:.2f}", f"{current_beta-1.2:.2f}", delta_color="inverse")
 
-# [修復版表格] 改用更相容的 ProgressColumn 設定
-st.write("💡 在 **「持有股數或現金」** 欄位修改後按下 Enter 即可預覽，點擊下方按鈕存檔。")
 edited_df = st.data_editor(
     df[["資產類別", "持有股數或金額", "今日報價", "市值", "目標佔比", "目前佔比"]],
     column_config={
@@ -108,7 +104,7 @@ edited_df = st.data_editor(
     hide_index=True, use_container_width=True
 )
 
-if st.button("💾 儲存最新數據 (存檔後將重整畫面)"):
+if st.button("💾 儲存最新數據"):
     st.session_state.shares_data['持有股數或金額'] = edited_df['持有股數或金額']
     st.session_state.shares_data.to_csv(DATA_FILE, index=False)
     st.success("存檔成功！")
@@ -116,18 +112,20 @@ if st.button("💾 儲存最新數據 (存檔後將重整畫面)"):
 
 st.markdown("---")
 # ==========================================
-# 區塊二 & 三：雷達與微笑曲線 (穩定版排版)
+# 區塊二 & 三：雷達 (更新標題現價)
 # ==========================================
 st.header("🔴 區塊二：雙核雷達警報器")
 c_r1, c_r2 = st.columns(2)
 with c_r1:
-    sma_662 = st.number_input("00662A 年線設定：", value=93.49)
+    # [更新] 標題顯示現價
+    sma_662 = st.number_input(f"00662 240日年線設定 (現價 ${p_662:.2f})：", value=93.49)
     bias_662 = ((p_662 - sma_662) / sma_662) * 100
-    st.metric("00662A 偏離率", f"{bias_662:.2f}%", "安全" if bias_662>0 else "跌破")
+    st.metric("00662 偏離率", f"{bias_662:.2f}%", "安全" if bias_662>0 else "跌破")
 with c_r2:
-    sma_qqq = st.number_input("QQQ 年線設定 (USD)：", value=430.0)
+    # [更新] 標題顯示現價
+    sma_qqq = st.number_input(f"QQQ 240日年線設定 (現價 ${p_qqq:.2f})：", value=430.0)
     bias_qqq = ((p_qqq - sma_qqq) / sma_qqq) * 100
-    st.metric(f"QQQ 偏離率 (現價 ${p_qqq:.2f})", f"{bias_qqq:.2f}%", "安全" if bias_qqq>0 else "跌破")
+    st.metric("QQQ 偏離率", f"{bias_qqq:.2f}%", "安全" if bias_qqq>0 else "跌破")
 
 st.markdown("---")
 st.header("🔵 區塊三：微笑曲線打點計畫")
