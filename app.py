@@ -4,12 +4,12 @@ import yfinance as yf
 import os
 
 # 設定網頁標題與寬版顯示
-st.set_page_config(page_title="Sihwa 資本 - V12 修復穩定版", layout="wide")
+st.set_page_config(page_title="Sihwa 資本 - V13 穩定美化版", layout="wide")
 st.title("Sihwa 資本 | 雷恩 40-40-20 旗艦儀表板 🚀")
 st.markdown("---")
 
-# 1. 設定自動抓取資料工具 (含 % 漲跌計算)
-@st.cache_data(ttl=900)
+# 1. 數據抓取工具
+@st.cache_data(ttl=600)
 def get_stock_data(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -20,197 +20,132 @@ def get_stock_data(ticker):
             change = current - prev_close
             change_pct = (change / prev_close) * 100
             return float(current), float(change), float(change_pct)
-        else:
-            current = hist['Close'].iloc[-1]
-            return float(current), 0.0, 0.0
+        return float(hist['Close'].iloc[-1]), 0.0, 0.0
     except:
         return 100.0, 0.0, 0.0
 
-# 2. 抓取匯率
 @st.cache_data(ttl=3600)
 def get_exchange_rate():
     try:
-        rate = yf.Ticker("USDTWD=X").history(period="1d")['Close'].iloc[-1]
-        return float(rate)
+        return float(yf.Ticker("USDTWD=X").history(period="1d")['Close'].iloc[-1])
     except:
         return 32.5
 
-# ==========================================
-# 頂部即時看盤區
-# ==========================================
-st.header("📡 系統連線：即時報價與匯率")
-col_p1, col_p2, col_p3, col_p4 = st.columns(4)
-
-with st.spinner('數據同步中...'):
+# 數據同步
+with st.spinner('市場數據同步中...'):
     p_662, c_662, cp_662 = get_stock_data("00662.TW")
     p_670L, c_670L, cp_670L = get_stock_data("00670L.TW")
     p_865B, c_865B, cp_865B = get_stock_data("00865B.TW")
     p_qqq, c_qqq, cp_qqq = get_stock_data("QQQ")
     usd_twd = get_exchange_rate()
 
-col_p1.metric("原型底倉 (00662A)", f"${p_662:.2f}", f"{c_662:+.2f} ({cp_662:+.2f}%)")
-col_p2.metric("正2攻擊 (00670L)", f"${p_670L:.2f}", f"{c_670L:+.2f} ({cp_670L:+.2f}%)")
-col_p3.metric("絕對保命金 (00865B)", f"${p_865B:.2f}", f"{c_865B:+.2f} ({cp_865B:+.2f}%)")
+# 頂部即時看板
+col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+col_p1.metric("00662A (原型)", f"${p_662:.2f}", f"{cp_662:+.2f}%")
+col_p2.metric("00670L (正2)", f"${p_670L:.2f}", f"{cp_670L:+.2f}%")
+col_p3.metric("00865B (保命)", f"${p_865B:.2f}", f"{cp_865B:+.2f}%")
 col_p4.metric("USD/TWD 匯率", f"${usd_twd:.2f}")
 
 st.markdown("---")
+
 # ==========================================
-# 區塊一：部位管理、損益與 Beta
+# 區塊一：部位管理 (排序優化與穩定版表格)
 # ==========================================
-st.header("🟡 區塊一：部位管理與 Beta 風險控管")
+st.header("🟡 區塊一：部位管理與 Beta 監控")
 
 DATA_FILE = "portfolio_data.csv"
+# [老闆指定排序] 原型底倉 -> 保命金 -> 現金 -> 加碼倉 -> 正2攻擊
 CAT_ORDER = ["原型底倉 (00662A)", "絕對保命金 (00865B)", "撤退備戰金 (現金)", "原型加碼倉", "正2攻擊 (00670L)"]
 
-# 穩定的載入與對齊邏輯
-def load_data():
+if 'shares_data' not in st.session_state:
     if os.path.exists(DATA_FILE):
         _df = pd.read_csv(DATA_FILE)
     else:
         _df = pd.DataFrame({
-            "資產類別": ["原型底倉 (00662A)", "絕對保命金 (00865B)", "撤退備戰金 (現金)", "原型加碼倉", "正2攻擊 (00670L)"],
+            "資產類別": CAT_ORDER,
             "持有股數或金額": [113000, 150000, 4309152, 0, 0]
         })
-    # 確保讀取後強制對齊排序，避免當機
     _df['資產類別'] = pd.Categorical(_df['資產類別'], categories=CAT_ORDER, ordered=True)
-    return _df.sort_values('資產類別').reset_index(drop=True)
-
-if 'shares_data' not in st.session_state:
-    st.session_state.shares_data = load_data()
+    st.session_state.shares_data = _df.sort_values('資產類別').reset_index(drop=True)
 
 df = st.session_state.shares_data.copy()
 
-price_map = {"原型底倉 (00662A)": p_662, "絕對保命金 (00865B)": p_865B, "撤退備戰金 (現金)": 1.0, "原型加碼倉": p_662, "正2攻擊 (00670L)": p_670L}
-beta_map = {"原型底倉 (00662A)": 1.0, "絕對保命金 (00865B)": 0.0, "撤退備戰金 (現金)": 0.0, "原型加碼倉": 1.0, "正2攻擊 (00670L)": 2.0}
-target_map = {"原型底倉 (00662A)": "40%", "絕對保命金 (00865B)": "20%", "撤退備戰金 (現金)": "0%", "原型加碼倉": "0%", "正2攻擊 (00670L)": "40%"}
+# 靜態映射
+p_map = {"原型底倉 (00662A)": p_662, "絕對保命金 (00865B)": p_865B, "撤退備戰金 (現金)": 1.0, "原型加碼倉": p_662, "正2攻擊 (00670L)": p_670L}
+b_map = {"原型底倉 (00662A)": 1.0, "絕對保命金 (00865B)": 0.0, "撤退備戰金 (現金)": 0.0, "原型加碼倉": 1.0, "正2攻擊 (00670L)": 2.0}
+t_map = {"原型底倉 (00662A)": "40%", "絕對保命金 (00865B)": "20%", "撤退備戰金 (現金)": "0%", "原型加碼倉": "0%", "正2攻擊 (00670L)": "40%"}
 
-df['今日單價'] = df['資產類別'].map(price_map)
-df['個股Beta'] = df['資產類別'].map(beta_map)
-df['目標佔比'] = df['資產類別'].map(target_map)
-
-# 計算市值與佔比
-df['市值'] = df['持有股數或金額'] * df['今日單價']
+df['今日報價'] = df['資產類別'].map(p_map)
+df['市值'] = df['持有股數或金額'] * df['今日報價']
 total_val = df['市值'].sum()
-df['佔比數值'] = (df['市值'] / total_val) * 100 if total_val > 0 else 0
+df['目前佔比'] = (df['市值'] / total_val) if total_val > 0 else 0
+df['目標佔比'] = df['資產類別'].map(t_map)
+df['個股Beta'] = df['資產類別'].map(b_map)
 
-# 安全計算今日損益
-def get_qty(asset_name):
-    return df.loc[df['資產類別'] == asset_name, '持有股數或金額'].values[0]
+# 計算損益與 Beta
+today_pnl = (df.loc[df['資產類別'].isin(['原型底倉 (00662A)', '原型加碼倉']), '持有股數或金額'].sum() * c_662) + \
+            (df.loc[df['資產類別'] == '正2攻擊 (00670L)', '持有股數或金額'].sum() * c_670L) + \
+            (df.loc[df['資產類別'] == '絕對保命金 (00865B)', '持有股數或金額'].sum() * c_865B)
+current_beta = (df['目前佔比'] * df['個股Beta']).sum()
 
-today_pnl = (get_qty('原型底倉 (00662A)') * c_662) + (get_qty('原型加碼倉') * c_662) + \
-            (get_qty('正2攻擊 (00670L)') * c_670L) + (get_qty('絕對保命金 (00865B)') * c_865B)
+# 數據指標欄
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("💰 總資產淨值", f"NT$ {total_val:,.0f}")
+m2.metric("📊 今日總損益", f"NT$ {today_pnl:,.0f}", f"{(today_pnl/total_val)*100:+.2f}%")
+m3.metric("🎯 目標 Beta", "1.20")
+m4.metric("📈 實質 Beta", f"{current_beta:.2f}", f"{current_beta-1.2:.2f}", delta_color="inverse")
 
-current_beta = ((df['市值'] / total_val) * df['個股Beta']).sum() if total_val > 0 else 0
-target_beta = 1.20
-
-# 顯示數據牆
-col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-col_m1.metric("💰 目前總資產淨值", f"NT$ {total_val:,.0f}")
-col_m2.metric("📊 今日總損益", f"NT$ {today_pnl:,.0f}", f"{(today_pnl/total_val)*100:+.2f}%" if total_val > 0 else "0.00%")
-col_m3.metric("🎯 目標總 Beta", f"{target_beta:.2f}")
-col_m4.metric("📈 目前實質 Beta", f"{current_beta:.2f}", f"{current_beta - target_beta:+.2f}", delta_color="inverse")
-
-st.write("💡 直接在表格的 **「✏️ 股數或現金」** 欄位修改數字，網頁將自動連動計算。")
-
-# ✨ 美化版互動表格
+# [修復版表格] 改用更相容的 ProgressColumn 設定
+st.write("💡 在 **「持有股數或現金」** 欄位修改後按下 Enter 即可預覽，點擊下方按鈕存檔。")
 edited_df = st.data_editor(
-    df[["資產類別", "持有股數或金額", "今日單價", "市值", "目標佔比", "佔比數值", "個股Beta"]],
+    df[["資產類別", "持有股數或金額", "今日報價", "市值", "目標佔比", "目前佔比"]],
     column_config={
-        "資產類別": st.column_config.Column("🛡️ 資產類別", disabled=True),
-        "持有股數或金額": st.column_config.NumberColumn("✏️ 股數或現金 (請修改)", step=1000, format="%d"),
-        "今日單價": st.column_config.NumberColumn("報價", format="$%.2f", disabled=True),
-        "市值": st.column_config.NumberColumn("💰 總市值", format="$%d", disabled=True),
-        "目標佔比": st.column_config.Column("🎯 目標", disabled=True),
-        "佔比數值": st.column_config.ProgressColumn(
-            "📊 實際佔比進度 (%)",
-            help="藍色進度條顯示目前資金比重",
-            format="%.2f",
-            min_value=0,
-            max_value=100,
-            disabled=True
-        ),
-        "個股Beta": st.column_config.NumberColumn("📈 Beta", format="%.1f", disabled=True)
+        "持有股數或金額": st.column_config.NumberColumn("✏️ 持有股數或現金", format="%d", step=1),
+        "市值": st.column_config.NumberColumn("總市值", format="$%d"),
+        "目前佔比": st.column_config.ProgressColumn("📊 目前佔比", min_value=0, max_value=1, format="%.2f"),
     },
-    hide_index=True, 
-    use_container_width=True
+    disabled=["資產類別", "今日報價", "市值", "目標佔比", "目前佔比"],
+    hide_index=True, use_container_width=True
 )
 
-# 儲存按鈕
-col_btn1, col_btn2 = st.columns([1, 5])
-with col_btn1:
-    if st.button("💾 儲存最新股數", use_container_width=True):
-        save_df = edited_df[["資產類別", "持有股數或金額"]]
-        save_df.to_csv(DATA_FILE, index=False)
-        st.session_state.shares_data = save_df
-        st.success("✅ 儲存成功！")
-        st.rerun()
-
-# [修復防呆邏輯] 使用列表比對，避免 pandas 索引錯亂導致的當機
-if list(edited_df['持有股數或金額']) != list(st.session_state.shares_data['持有股數或金額']):
+if st.button("💾 儲存最新數據 (存檔後將重整畫面)"):
     st.session_state.shares_data['持有股數或金額'] = edited_df['持有股數或金額']
+    st.session_state.shares_data.to_csv(DATA_FILE, index=False)
+    st.success("存檔成功！")
     st.rerun()
 
 st.markdown("---")
 # ==========================================
-# 區塊二：雙核雷達 (優化視覺版)
+# 區塊二 & 三：雷達與微笑曲線 (穩定版排版)
 # ==========================================
-st.header("🔴 區塊二：雙核雷達警報器 (台美雙指標)")
-
-col_r1, col_r2 = st.columns(2)
-
-with col_r1:
-    st.info("🇹🇼 **台股指標：00662A 監控**")
-    sma_240 = st.number_input("設定 240日年線 (TWD)：", value=93.49, step=0.1)
-    bias_662 = ((p_662 - sma_240) / sma_240) * 100
-    st.metric(label="目前偏離率", value=f"{bias_662:.2f}%", delta="站穩年線" if bias_662 > 0 else "跌破年線", delta_color="normal" if bias_662 > 0 else "inverse")
-    if bias_662 >= 0:
-        st.success("🟢 狀態：安全續抱")
-    elif bias_662 >= -3:
-        st.warning("🟡 狀態：警戒防守，觀察三日")
-    else:
-        st.error("🔴 狀態：危險撤退，無情清空正2！")
-
-with col_r2:
-    st.info("🇺🇸 **美股指標：QQQ 監控**")
-    qqq_sma_240 = st.number_input("設定 240日年線 (USD)：", value=430.0, step=0.5)
-    bias_qqq = ((p_qqq - qqq_sma_240) / qqq_sma_240) * 100
-    st.metric(label=f"目前偏離率 (現價 ${p_qqq:.2f})", value=f"{bias_qqq:.2f}%", delta="站穩年線" if bias_qqq > 0 else "跌破年線", delta_color="normal" if bias_qqq > 0 else "inverse")
-    if bias_qqq >= 0:
-        st.success("🟢 狀態：美股大盤健康")
-    else:
-        st.error("🔴 狀態：美股大盤轉弱，防禦準備！")
+st.header("🔴 區塊二：雙核雷達警報器")
+c_r1, c_r2 = st.columns(2)
+with c_r1:
+    sma_662 = st.number_input("00662A 年線設定：", value=93.49)
+    bias_662 = ((p_662 - sma_662) / sma_662) * 100
+    st.metric("00662A 偏離率", f"{bias_662:.2f}%", "安全" if bias_662>0 else "跌破")
+with c_r2:
+    sma_qqq = st.number_input("QQQ 年線設定 (USD)：", value=430.0)
+    bias_qqq = ((p_qqq - sma_qqq) / sma_qqq) * 100
+    st.metric(f"QQQ 偏離率 (現價 ${p_qqq:.2f})", f"{bias_qqq:.2f}%", "安全" if bias_qqq>0 else "跌破")
 
 st.markdown("---")
-# ==========================================
-# 區塊三：微笑曲線 (打勾清單)
-# ==========================================
-st.header("🔵 區塊三：微笑曲線打點表")
-cash_reserve = get_qty('撤退備戰金 (現金)')
-st.write(f"💡 目前可動用之【撤退備戰金】： **NT$ {cash_reserve:,.0f}**")
+st.header("🔵 區塊三：微笑曲線打點計畫")
+cash_reserve = df.loc[df['資產類別'] == '撤退備戰金 (現金)', '市值'].values[0]
+st.write(f"💡 目前備戰金： **NT$ {cash_reserve:,.0f}**")
 
-def get_smile_text(label, drop_rate, invest_ratio):
-    target_price = sma_240 * (1 - drop_rate)
-    budget = total_val * invest_ratio
-    shares = int(budget / target_price) if target_price > 0 else 0
-    return f"{label} ➔ 觸發價 **${target_price:.2f}** | 買 **{shares:,}** 股 (約 ${budget/10000:.0f}萬)"
+def get_smile_text(label, drop, inv):
+    tp = sma_662 * (1 - drop)
+    budget = total_val * inv
+    shares = int(budget / tp) if tp > 0 else 0
+    return f"{label} ➔ 觸發價 **${tp:.2f}** | 買 **{shares:,}** 股 (約 ${budget/10000:.0f}萬)"
 
-col_a, col_b = st.columns(2)
-with col_a:
-    st.subheader("📉 左側下跌段")
-    st.checkbox(get_smile_text("-8% (投5%)", 0.08, 0.05))
-    st.checkbox(get_smile_text("-10% (投5%)", 0.10, 0.05))
-    st.checkbox(get_smile_text("-15% (投5%)", 0.15, 0.05))
-    st.checkbox(get_smile_text("-20% (投5%)", 0.20, 0.05))
-    st.checkbox(get_smile_text("-25% (投5%)", 0.25, 0.05))
-    st.checkbox(get_smile_text("-30% (投5%)", 0.30, 0.05))
-
-with col_b:
-    st.subheader("📈 右側上漲段")
-    st.checkbox(get_smile_text("從 -8% 反彈 (投2%)", 0.08, 0.02))
-    st.checkbox(get_smile_text("從 -10% 反彈 (投2%)", 0.10, 0.02))
-    st.checkbox(get_smile_text("從 -15% 反彈 (投2%)", 0.15, 0.02))
-    st.checkbox(get_smile_text("從 -20% 反彈 (投2%)", 0.20, 0.02))
-    st.checkbox(get_smile_text("從 -25% 反彈 (投2%)", 0.25, 0.02))
-    st.checkbox(get_smile_text("從 -30% 反彈 (投2%)", 0.30, 0.02))
-
-st.error("🛑 提示：若跌破 -30% 深淵，請停止加碼，進入冬眠模式保護現金！")
+cc1, cc2 = st.columns(2)
+with cc1:
+    st.subheader("📉 下跌段 (5%)")
+    for d in [0.08, 0.1, 0.15, 0.2, 0.25, 0.3]:
+        st.checkbox(get_smile_text(f"-{d*100:g}%", d, 0.05))
+with cc2:
+    st.subheader("📈 反彈段 (2%)")
+    for d in [0.08, 0.1, 0.15, 0.2, 0.25, 0.3]:
+        st.checkbox(get_smile_text(f"反彈 {d*100:g}%", d, 0.02))
