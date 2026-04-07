@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import yfinance as yf
+import os
 
 # 設定網頁標題與寬版顯示
-st.set_page_config(page_title="Sihwa 資本 - V6 旗艦投資儀表板", layout="wide")
+st.set_page_config(page_title="Sihwa 資本 - V7 旗艦投資儀表板", layout="wide")
 st.title("Sihwa 資本 | 雷恩 40-40-20 旗艦儀表板 🚀")
 st.markdown("---")
 
@@ -36,7 +36,7 @@ def get_exchange_rate():
         return 32.5
 
 # ==========================================
-# 頂部即時看盤區 (加入 % 漲跌)
+# 頂部即時看盤區
 # ==========================================
 st.header("📡 系統連線：即時報價與匯率")
 col_p1, col_p2, col_p3, col_p4 = st.columns(4)
@@ -54,32 +54,52 @@ col_p4.metric("USD/TWD 匯率", f"${usd_twd:.2f}")
 
 st.markdown("---")
 # ==========================================
-# 區塊一：資產配置與 Beta 監控
+# 區塊一：部位管理、損益與 Beta
 # ==========================================
 st.header("🟡 區塊一：部位管理與 Beta 風險控管")
 
+# 設定存檔路徑
+DATA_FILE = "portfolio_data.csv"
+
+# 載入存檔或使用預設值功能
+def load_data():
+    if os.path.exists(DATA_FILE):
+        return pd.read_csv(DATA_FILE)
+    else:
+        # 將加碼倉與正2預設改為 0
+        return pd.DataFrame({
+            "資產類別": ["原型底倉 (00662A)", "原型加碼倉", "正2攻擊 (00670L)", "絕對保命金 (00865B)", "撤退備戰金 (現金)"],
+            "持有股數或金額": [113000, 0, 0, 150000, 4309152],
+            "個股Beta": [1.0, 1.0, 2.0, 0.0, 0.0]
+        })
+
 if 'shares_data' not in st.session_state:
-    st.session_state.shares_data = pd.DataFrame({
-        "資產類別": ["原型底倉 (00662A)", "原型加碼倉", "正2攻擊 (00670L)", "絕對保命金 (00865B)", "撤退備戰金 (現金)"],
-        "持有股數或金額": [113000, 10000, 5000000, 150000, 4309152],
-        "個股Beta": [1.0, 1.0, 2.0, 0.0, 0.0]
-    })
+    st.session_state.shares_data = load_data()
 
 # 計算市值
 df = st.session_state.shares_data.copy()
 df['今日單價'] = [p_662, p_662, p_670L, p_865B, 1.0]
 df['市值'] = df['持有股數或金額'] * df['今日單價']
 total_val = df['市值'].sum()
-df['佔比'] = (df['市值'] / total_val)
+df['佔比'] = (df['市值'] / total_val) if total_val > 0 else 0
 
-# [重點] 計算 Beta
+# 計算今日損益
+qty_662_base = df.loc[0, '持有股數或金額']
+qty_662_add = df.loc[1, '持有股數或金額']
+qty_670L = df.loc[2, '持有股數或金額']
+qty_865B = df.loc[3, '持有股數或金額']
+today_pnl = (qty_662_base * c_662) + (qty_662_add * c_662) + (qty_670L * c_670L) + (qty_865B * c_865B)
+
+# 計算 Beta
 current_beta = (df['佔比'] * df['個股Beta']).sum()
-target_beta = 1.20  # 雷恩 40-40-20 的標準 Beta
+target_beta = 1.20
 
-col_m1, col_m2, col_m3 = st.columns(3)
+# 四大核心數據牆
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 col_m1.metric("💰 目前總資產淨值", f"NT$ {total_val:,.0f}")
-col_m2.metric("🎯 目標總 Beta", f"{target_beta:.2f}")
-col_m3.metric("📈 目前實質 Beta", f"{current_beta:.2f}", f"{current_beta - target_beta:+.2f}", delta_color="inverse")
+col_m2.metric("📊 今日總損益", f"NT$ {today_pnl:,.0f}", f"{(today_pnl/total_val)*100:+.2f}%" if total_val > 0 else "0.00%")
+col_m3.metric("🎯 目標總 Beta", f"{target_beta:.2f}")
+col_m4.metric("📈 目前實質 Beta", f"{current_beta:.2f}", f"{current_beta - target_beta:+.2f}", delta_color="inverse")
 
 # 顯示表格
 df['佔比(%)'] = df['佔比'].apply(lambda x: f"{x*100:.2f}%")
@@ -90,6 +110,16 @@ edited_df = st.data_editor(
     hide_index=True, use_container_width=True
 )
 
+# 儲存按鈕功能
+col_btn1, col_btn2 = st.columns([1, 5])
+with col_btn1:
+    if st.button("💾 儲存最新股數", use_container_width=True):
+        st.session_state.shares_data['持有股數或金額'] = edited_df['持有股數或金額']
+        st.session_state.shares_data.to_csv(DATA_FILE, index=False)
+        st.success("✅ 儲存成功！下次將自動載入此設定。")
+        st.rerun()
+
+# 偵測輸入變更並自動重算
 if not edited_df['持有股數或金額'].equals(st.session_state.shares_data['持有股數或金額']):
     st.session_state.shares_data['持有股數或金額'] = edited_df['持有股數或金額']
     st.rerun()
@@ -117,12 +147,11 @@ def calc_smile_row(drop_rate, invest_ratio):
     shares = int(budget / trigger_p) if trigger_p > 0 else 0
     return [f"{drop_rate*100:g}%", f"${trigger_p:.2f}", f"${budget:,.0f}", f"{shares:,} 股"]
 
-# 建立計畫表數據
 smile_data = []
 for drop, inv in [(0.08, 0.05), (0.1, 0.05), (0.15, 0.05), (0.2, 0.05), (0.25, 0.05), (0.3, 0.05)]:
     smile_data.append(calc_smile_row(drop, inv))
 
 smile_df = pd.DataFrame(smile_data, columns=["跌幅觸發", "觸發價格", "預計動用金額", "建議買入股數"])
-st.table(smile_df) # 使用 table 讓畫面更精簡好看
+st.table(smile_df)
 
 st.error("🛑 提示：若跌幅超過 -30%，請停止任何加碼動作，保留現金冬眠！")
